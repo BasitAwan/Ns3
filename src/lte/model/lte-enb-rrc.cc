@@ -582,7 +582,6 @@ UeManager::ScheduleRrcConnectionReconfiguration ()
 void 
 UeManager::PrepareHandover (uint16_t cellId)
 {
-  std::cout << Simulator::Now ().GetSeconds ()<< " PrepareHandover" << std::endl;
   NS_LOG_FUNCTION (this << cellId);
   switch (m_state)
     {
@@ -639,7 +638,6 @@ UeManager::PrepareHandover (uint16_t cellId)
 void 
 UeManager::PrepareStateRequest (uint16_t cellId)
 {
-  std::cout << Simulator::Now ().GetSeconds ()<< " PrepareHandover" << std::endl;
   NS_LOG_FUNCTION (this << cellId);
   switch (m_state)
     {
@@ -891,7 +889,6 @@ UeManager::RecvSnStatusTransfer (EpcX2SapUser::SnStatusTransferParams params)
       // NS_ASSERT_MSG (drbIt != m_drbMap.end (), "could not find DRBID " << (uint32_t) drbId);
       // drbIt->second->m_pdcp->SetStatus (status);
     }
-  std::cout << Simulator::Now ().GetSeconds ()<< " RecvSNStatusTransfer" << std::endl;
 
 }
 
@@ -2267,7 +2264,6 @@ LteEnbRrc::SendHandoverRequest (uint16_t rnti, uint16_t cellId)
   NS_LOG_FUNCTION (this << rnti << cellId);
   NS_LOG_LOGIC ("Request to send HANDOVER REQUEST");
   NS_ASSERT (m_configured);
-  std::cout << Simulator::Now ().GetSeconds ()<< " SendHandOverRequest" << std::endl;
   Ptr<UeManager> ueManager = GetUeManager (rnti);
   ueManager->PrepareHandover (cellId);
  
@@ -2283,6 +2279,16 @@ LteEnbRrc::SendStateReplicate (uint16_t rnti, uint16_t cellId)
   Ptr<UeManager> ueManager = GetUeManager (rnti);
   ueManager->PrepareStateRequest (cellId);
  
+}
+
+void
+LteEnbRrc::SendModHandover (uint16_t rnti)
+{
+  Ptr<UeManager> ueManager = GetUeManager (rnti);
+  EpcX2SapUser::HandoverRequestAckParams params = ReplicatedStateAckMap[rnti];
+  ueManager->RecvHandoverRequestAck (params);
+  std::cout << Simulator::Now ().GetSeconds ()<< " ModHandover" << std::endl;
+
 }
 
 
@@ -2354,6 +2360,89 @@ LteEnbRrc::DoRecvStateReplication (EpcX2SapUser::HandoverRequestParams req)
 {
   uint32_t imsi = req.mmeUeS1apId;
   ReplicatedStateMap.insert({imsi,req});
+  NS_LOG_FUNCTION (this);
+
+  NS_LOG_LOGIC ("Recv X2 message: HANDOVER REQUEST");
+
+  NS_LOG_LOGIC ("oldEnbUeX2apId = " << req.oldEnbUeX2apId);
+  NS_LOG_LOGIC ("sourceCellId = " << req.sourceCellId);
+  NS_LOG_LOGIC ("targetCellId = " << req.targetCellId);
+  NS_LOG_LOGIC ("mmeUeS1apId = " << req.mmeUeS1apId);
+  if (m_admitHandoverRequest == false)
+    {
+      NS_LOG_INFO ("rejecting handover request from cellId " << req.sourceCellId);
+      EpcX2Sap::HandoverPreparationFailureParams res;
+      res.oldEnbUeX2apId =  req.oldEnbUeX2apId;
+      res.sourceCellId = req.sourceCellId;
+      res.targetCellId = req.targetCellId;
+      res.cause = 0;
+      res.criticalityDiagnostics = 0;
+      m_x2SapProvider->SendHandoverPreparationFailure (res);
+      return;
+    }
+
+  uint16_t rnti = AddUe (UeManager::HANDOVER_JOINING, CellToComponentCarrierId (req.targetCellId));
+  LteEnbCmacSapProvider::AllocateNcRaPreambleReturnValue anrcrv = m_cmacSapProvider.at (0)->AllocateNcRaPreamble (rnti);
+  if (anrcrv.valid == false)
+    {
+      NS_LOG_INFO (this << " failed to allocate a preamble for non-contention based RA => cannot accept HO");
+      RemoveUe (rnti);
+      NS_FATAL_ERROR ("should trigger HO Preparation Failure, but it is not implemented");
+      return;
+    }
+
+  Ptr<UeManager> ueManager = GetUeManager (rnti);
+  ueManager->SetSource (req.sourceCellId, req.oldEnbUeX2apId);
+  ueManager->SetImsi (req.mmeUeS1apId);
+
+  EpcX2SapProvider::HandoverRequestAckParams ackParams;
+  ackParams.oldEnbUeX2apId = req.oldEnbUeX2apId;
+  ackParams.newEnbUeX2apId = rnti;
+  ackParams.sourceCellId = req.sourceCellId;
+  ackParams.targetCellId = req.targetCellId;
+
+  for (std::vector <EpcX2Sap::ErabToBeSetupItem>::iterator it = req.bearers.begin ();
+       it != req.bearers.end ();
+       ++it)
+    {
+      ueManager->SetupDataRadioBearer (it->erabLevelQosParameters, it->erabId, it->gtpTeid, it->transportLayerAddress);
+      EpcX2Sap::ErabAdmittedItem i;
+      i.erabId = it->erabId;
+      ackParams.admittedBearers.push_back (i);
+    }
+
+  LteRrcSap::RrcConnectionReconfiguration handoverCommand = ueManager->GetRrcConnectionReconfigurationForHandover ();
+  handoverCommand.haveMobilityControlInfo = true;
+  handoverCommand.mobilityControlInfo.targetPhysCellId = req.targetCellId;
+  handoverCommand.mobilityControlInfo.haveCarrierFreq = true;
+  handoverCommand.mobilityControlInfo.carrierFreq.dlCarrierFreq = m_dlEarfcn;
+  handoverCommand.mobilityControlInfo.carrierFreq.ulCarrierFreq = m_ulEarfcn;
+  handoverCommand.mobilityControlInfo.haveCarrierBandwidth = true;
+  handoverCommand.mobilityControlInfo.carrierBandwidth.dlBandwidth = m_dlBandwidth;
+  handoverCommand.mobilityControlInfo.carrierBandwidth.ulBandwidth = m_ulBandwidth;
+  handoverCommand.mobilityControlInfo.newUeIdentity = rnti;
+  handoverCommand.mobilityControlInfo.haveRachConfigDedicated = true;
+  handoverCommand.mobilityControlInfo.rachConfigDedicated.raPreambleIndex = anrcrv.raPreambleId;
+  handoverCommand.mobilityControlInfo.rachConfigDedicated.raPrachMaskIndex = anrcrv.raPrachMaskIndex;
+
+  LteEnbCmacSapProvider::RachConfig rc = m_cmacSapProvider.at (0)->GetRachConfig ();
+  handoverCommand.mobilityControlInfo.radioResourceConfigCommon.rachConfigCommon.preambleInfo.numberOfRaPreambles = rc.numberOfRaPreambles;
+  handoverCommand.mobilityControlInfo.radioResourceConfigCommon.rachConfigCommon.raSupervisionInfo.preambleTransMax = rc.preambleTransMax;
+  handoverCommand.mobilityControlInfo.radioResourceConfigCommon.rachConfigCommon.raSupervisionInfo.raResponseWindowSize = rc.raResponseWindowSize;
+  handoverCommand.haveNonCriticalExtension = false;
+
+  Ptr<Packet> encodedHandoverCommand = m_rrcSapUser->EncodeHandoverCommand (handoverCommand);
+
+  ackParams.rrcContext = encodedHandoverCommand;
+
+  NS_LOG_LOGIC ("Send X2 message: HANDOVER REQUEST ACK");
+
+  NS_LOG_LOGIC ("oldEnbUeX2apId = " << ackParams.oldEnbUeX2apId);
+  NS_LOG_LOGIC ("newEnbUeX2apId = " << ackParams.newEnbUeX2apId);
+  NS_LOG_LOGIC ("sourceCellId = " << ackParams.sourceCellId);
+  NS_LOG_LOGIC ("targetCellId = " << ackParams.targetCellId);
+
+  m_x2SapProvider->SendStateReplicateAck (ackParams);
 
 }
 
@@ -2441,7 +2530,6 @@ LteEnbRrc::DoRecvHandoverRequest (EpcX2SapUser::HandoverRequestParams req)
   NS_LOG_LOGIC ("newEnbUeX2apId = " << ackParams.newEnbUeX2apId);
   NS_LOG_LOGIC ("sourceCellId = " << ackParams.sourceCellId);
   NS_LOG_LOGIC ("targetCellId = " << ackParams.targetCellId);
-  std::cout << Simulator::Now ().GetSeconds ()<< " DoRecvHandoverRequest" << std::endl;
 
   m_x2SapProvider->SendHandoverRequestAck (ackParams);
 
@@ -2451,6 +2539,22 @@ LteEnbRrc::DoRecvHandoverRequest (EpcX2SapUser::HandoverRequestParams req)
 void
 LteEnbRrc::DoRecvHandoverRequestAck (EpcX2SapUser::HandoverRequestAckParams params)
 {
+   NS_LOG_FUNCTION (this);
+ 
+   NS_LOG_LOGIC ("Recv X2 message: HANDOVER REQUEST ACK");
+ 
+   NS_LOG_LOGIC ("oldEnbUeX2apId = " << params.oldEnbUeX2apId);
+   NS_LOG_LOGIC ("newEnbUeX2apId = " << params.newEnbUeX2apId);
+   NS_LOG_LOGIC ("sourceCellId = " << params.sourceCellId);
+   NS_LOG_LOGIC ("targetCellId = " << params.targetCellId);
+  uint16_t rnti = params.oldEnbUeX2apId;
+  Ptr<UeManager> ueManager = GetUeManager (rnti);
+  ueManager->RecvHandoverRequestAck (params);
+}
+
+void
+LteEnbRrc::DoRecvAckStateReplication (EpcX2SapUser::HandoverRequestAckParams params)
+{
   NS_LOG_FUNCTION (this);
 
   NS_LOG_LOGIC ("Recv X2 message: HANDOVER REQUEST ACK");
@@ -2459,11 +2563,16 @@ LteEnbRrc::DoRecvHandoverRequestAck (EpcX2SapUser::HandoverRequestAckParams para
   NS_LOG_LOGIC ("newEnbUeX2apId = " << params.newEnbUeX2apId);
   NS_LOG_LOGIC ("sourceCellId = " << params.sourceCellId);
   NS_LOG_LOGIC ("targetCellId = " << params.targetCellId);
-  std::cout << Simulator::Now ().GetSeconds ()<< " DoRecvHandoverRequestACK" << std::endl;
+
+
+  std::cout << Simulator::Now ().GetSeconds ()<< " RecvAckStateReplicate" << std::endl;
   uint16_t rnti = params.oldEnbUeX2apId;
-  Ptr<UeManager> ueManager = GetUeManager (rnti);
-  ueManager->RecvHandoverRequestAck (params);
+  ReplicatedStateAckMap.insert({rnti,params});
+
+  
 }
+
+
 
 void
 LteEnbRrc::DoRecvHandoverPreparationFailure (EpcX2SapUser::HandoverPreparationFailureParams params)
@@ -2493,7 +2602,6 @@ LteEnbRrc::DoRecvSnStatusTransfer (EpcX2SapUser::SnStatusTransferParams params)
   NS_LOG_LOGIC ("oldEnbUeX2apId = " << params.oldEnbUeX2apId);
   NS_LOG_LOGIC ("newEnbUeX2apId = " << params.newEnbUeX2apId);
   NS_LOG_LOGIC ("erabsSubjectToStatusTransferList size = " << params.erabsSubjectToStatusTransferList.size ());
-  std::cout << Simulator::Now ().GetSeconds ()<< " DorecvSNStatusTransfer" << std::endl;
 
   uint16_t rnti = params.newEnbUeX2apId;
   Ptr<UeManager> ueManager = GetUeManager (rnti);

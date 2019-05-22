@@ -1265,6 +1265,34 @@ LteHelper::DoHandoverRequest (Ptr<NetDevice> ueDev, Ptr<NetDevice> sourceEnbDev,
   sourceRrc->SendHandoverRequest (rnti, targetCellId);
 }
 
+void
+LteHelper::ModHandover (Time hoTime, Ptr<NetDevice> ueDev, Ptr<NetDevice> sourceEnbDev, Ptr<NetDevice> targetEnbDev)
+{
+  NS_LOG_FUNCTION (this << ueDev << sourceEnbDev << targetEnbDev);
+  NS_ASSERT_MSG (m_epcHelper, "Handover requires the use of the EPC - did you forget to call LteHelper::SetEpcHelper () ?");
+  uint16_t targetCellId = targetEnbDev->GetObject<LteEnbNetDevice> ()->GetCellId ();
+  Simulator::Schedule (hoTime, &LteHelper::DoModHandover, this, ueDev, sourceEnbDev, targetCellId);
+}
+
+void
+LteHelper::ModHandover (Time hoTime, Ptr<NetDevice> ueDev, Ptr<NetDevice> sourceEnbDev, uint16_t targetCellId)
+{
+  NS_LOG_FUNCTION (this << ueDev << sourceEnbDev << targetCellId);
+  NS_ASSERT_MSG (m_epcHelper, "Handover requires the use of the EPC - did you forget to call LteHelper::SetEpcHelper () ?");
+  Simulator::Schedule (hoTime, &LteHelper::DoModHandover, this, ueDev, sourceEnbDev, targetCellId);
+}
+
+void
+LteHelper::DoModHandover (Ptr<NetDevice> ueDev, Ptr<NetDevice> sourceEnbDev, uint16_t targetCellId)
+{
+  NS_LOG_FUNCTION (this << ueDev << sourceEnbDev << targetCellId);
+
+  Ptr<LteEnbRrc> sourceRrc = sourceEnbDev->GetObject<LteEnbNetDevice> ()->GetRrc ();
+  uint16_t rnti = ueDev->GetObject<LteUeNetDevice> ()->GetRrc ()->GetRnti ();
+  sourceRrc->SendModHandover (rnti);
+}
+
+
 //Some Replicate State Code
 void
 LteHelper::ReplicateState (Time hoTime, Ptr<NetDevice> ueDev, Ptr<NetDevice> sourceEnbDev, Ptr<NetDevice> targetEnbDev)
@@ -1292,6 +1320,8 @@ LteHelper::DoReplicateState (Ptr<NetDevice> ueDev, Ptr<NetDevice> sourceEnbDev, 
   uint16_t rnti = ueDev->GetObject<LteUeNetDevice> ()->GetRrc ()->GetRnti ();
   sourceRrc->SendStateReplicate(rnti, targetCellId);
 }
+
+
 
 void
 LteHelper::DeActivateDedicatedEpsBearer (Ptr<NetDevice> ueDevice,Ptr<NetDevice> enbDevice, uint8_t bearerId)

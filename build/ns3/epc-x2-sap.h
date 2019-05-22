@@ -361,6 +361,7 @@ public:
    * \param params the handover request ack parameters
    */
   virtual void SendHandoverRequestAck (HandoverRequestAckParams params) = 0;
+  virtual void SendStateReplicateAck (HandoverRequestAckParams params) = 0;
 
   /**
    * Send handover preparation failure function
@@ -431,6 +432,8 @@ public:
    */
   virtual void RecvHandoverRequestAck (HandoverRequestAckParams params) = 0;
 
+  virtual void RecvStateAckReplication (HandoverRequestAckParams params) = 0;
+
   /**
    * Receive handover preparation failure function
    * \param params the handover preparation failure parameters
@@ -500,6 +503,8 @@ public:
    * \param params the handover request ack pararameters
    */
   virtual void SendHandoverRequestAck (HandoverRequestAckParams params);
+  virtual void SendStateReplicateAck (HandoverRequestAckParams params);
+
 
   /**
    * Send handover preparation failure function
@@ -572,6 +577,13 @@ void
 EpcX2SpecificEpcX2SapProvider<C>::SendHandoverRequestAck (HandoverRequestAckParams params)
 {
   m_x2->DoSendHandoverRequestAck (params);
+}
+
+template <class C>
+void
+EpcX2SpecificEpcX2SapProvider<C>::SendStateReplicateAck (HandoverRequestAckParams params)
+{
+  m_x2->DoSendStateReplicateAck (params);
 }
 
 template <class C>
@@ -651,6 +663,9 @@ public:
    */
   virtual void RecvHandoverRequestAck (HandoverRequestAckParams params);
 
+  virtual void RecvStateAckReplication (HandoverRequestAckParams params);
+
+
   /**
    * Receive handover preparation failure function
    * \param params the receive handover preparation failure parameters
@@ -723,6 +738,15 @@ EpcX2SpecificEpcX2SapUser<C>::RecvHandoverRequestAck (HandoverRequestAckParams p
 {
   m_rrc->DoRecvHandoverRequestAck (params);
 }
+
+template <class C>
+void
+EpcX2SpecificEpcX2SapUser<C>::RecvStateAckReplication (HandoverRequestAckParams params)
+{
+  m_rrc->DoRecvAckStateReplication (params);
+}
+
+
 
 template <class C>
 void

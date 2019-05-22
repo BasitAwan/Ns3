@@ -506,10 +506,13 @@ public:
    */
   void HandoverRequest (Time hoTime, Ptr<NetDevice> ueDev,
                         Ptr<NetDevice> sourceEnbDev, Ptr<NetDevice> targetEnbDev);
+  void ModHandover (Time hoTime, Ptr<NetDevice> ueDev,
+                        Ptr<NetDevice> sourceEnbDev, Ptr<NetDevice> targetEnbDev);
                         
   void ReplicateState (Time hoTime, Ptr<NetDevice> ueDev,
                         Ptr<NetDevice> sourceEnbDev, Ptr<NetDevice> targetEnbDev);
-
+  void ReplicateAck (Time hoTime, Ptr<NetDevice> ueDev,
+                        Ptr<NetDevice> sourceEnbDev, Ptr<NetDevice> targetEnbDev);
 
   /**
    * Manually trigger an X2-based handover.
@@ -526,7 +529,12 @@ public:
   void HandoverRequest (Time hoTime, Ptr<NetDevice> ueDev,
                         Ptr<NetDevice> sourceEnbDev, uint16_t targetCellId);
 
+  void ModHandover (Time hoTime, Ptr<NetDevice> ueDev,
+                        Ptr<NetDevice> sourceEnbDev, uint16_t targetCellId);
   void ReplicateState (Time hoTime, Ptr<NetDevice> ueDev,
+                        Ptr<NetDevice> sourceEnbDev, uint16_t targetCellId);
+          
+  void ReplicateAck (Time hoTime, Ptr<NetDevice> ueDev,
                         Ptr<NetDevice> sourceEnbDev, uint16_t targetCellId);
 
   /** 
@@ -722,7 +730,13 @@ private:
   void DoReplicateState (Ptr<NetDevice> ueDev,
                           Ptr<NetDevice> sourceEnbDev,
                           uint16_t targetCellId);                        
+  void DoReplicateAck (Ptr<NetDevice> ueDev,
+                          Ptr<NetDevice> sourceEnbDev,
+                          uint16_t targetCellId); 
 
+  void DoModHandover (Ptr<NetDevice> ueDev,
+                          Ptr<NetDevice> sourceEnbDev,
+                          uint16_t targetCellId); 
 
   /**
    *  \brief The actual function to trigger a manual bearer de-activation

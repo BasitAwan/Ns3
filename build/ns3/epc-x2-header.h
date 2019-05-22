@@ -90,6 +90,7 @@ public:
     UeContextRelease        = 5,
     ResourceStatusReporting = 10,
     ReplicateState          = 6,
+    AckReplicateState      = 8,
   };
 
   /// Type of message enumeration

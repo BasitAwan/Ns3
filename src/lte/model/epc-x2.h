@@ -173,6 +173,9 @@ protected:
    * \param params the send handover request ack parameters
    */
   virtual void DoSendHandoverRequestAck (EpcX2SapProvider::HandoverRequestAckParams params);
+  virtual void DoSendStateReplicateAck (EpcX2SapProvider::HandoverRequestAckParams params);
+
+  
   /**
    * Send handover preparation failure function
    * \param params the handover preparation failure parameters

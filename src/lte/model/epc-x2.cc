@@ -187,7 +187,35 @@ EpcX2::RecvFromX2cSocket (Ptr<Socket> socket)
   uint8_t messageType = x2Header.GetMessageType ();
   uint8_t procedureCode = x2Header.GetProcedureCode ();
 
-  if (procedureCode == EpcX2Header::ReplicateState )
+
+
+  if (procedureCode == EpcX2Header::AckReplicateState)
+  {
+    NS_LOG_LOGIC ("Recv X2 message: HANDOVER REQUEST ACK");
+
+    EpcX2HandoverRequestAckHeader x2HoReqAckHeader;
+    packet->RemoveHeader (x2HoReqAckHeader);
+
+    NS_LOG_INFO ("X2 HandoverRequestAck header: " << x2HoReqAckHeader);
+
+    EpcX2SapUser::HandoverRequestAckParams params;          
+    params.oldEnbUeX2apId = x2HoReqAckHeader.GetOldEnbUeX2apId ();
+    params.newEnbUeX2apId = x2HoReqAckHeader.GetNewEnbUeX2apId ();
+    params.sourceCellId   = cellsInfo->m_localCellId;
+    params.targetCellId   = cellsInfo->m_remoteCellId;
+    params.admittedBearers = x2HoReqAckHeader.GetAdmittedBearers ();
+    params.notAdmittedBearers = x2HoReqAckHeader.GetNotAdmittedBearers ();
+    params.rrcContext     = packet;
+
+    NS_LOG_LOGIC ("oldEnbUeX2apId = " << params.oldEnbUeX2apId);
+    NS_LOG_LOGIC ("newEnbUeX2apId = " << params.newEnbUeX2apId);
+    NS_LOG_LOGIC ("sourceCellId = " << params.sourceCellId);
+    NS_LOG_LOGIC ("targetCellId = " << params.targetCellId);
+
+    m_x2SapUser->RecvStateAckReplication (params);
+  }
+
+  else if (procedureCode == EpcX2Header::ReplicateState )
   {
     EpcX2HandoverRequestHeader x2HoReqHeader;
     packet->RemoveHeader (x2HoReqHeader);
@@ -549,6 +577,54 @@ EpcX2::DoSendHandoverRequestAck (EpcX2SapProvider::HandoverRequestAckParams para
   EpcX2Header x2Header;
   x2Header.SetMessageType (EpcX2Header::SuccessfulOutcome);
   x2Header.SetProcedureCode (EpcX2Header::HandoverPreparation);
+  x2Header.SetLengthOfIes (x2HoAckHeader.GetLengthOfIes ());
+  x2Header.SetNumberOfIes (x2HoAckHeader.GetNumberOfIes ());
+
+  NS_LOG_INFO ("X2 header: " << x2Header);
+  NS_LOG_INFO ("X2 HandoverAck header: " << x2HoAckHeader);
+  NS_LOG_INFO ("RRC context: " << params.rrcContext);
+
+  // Build the X2 packet
+  Ptr<Packet> packet = (params.rrcContext != 0) ? (params.rrcContext) : (Create <Packet> ());
+  packet->AddHeader (x2HoAckHeader);
+  packet->AddHeader (x2Header);
+  NS_LOG_INFO ("packetLen = " << packet->GetSize ());
+
+  // Send the X2 message through the socket
+  localSocket->SendTo (packet, 0, InetSocketAddress (remoteIpAddr, m_x2cUdpPort));
+}
+
+void
+EpcX2::DoSendStateReplicateAck (EpcX2SapProvider::HandoverRequestAckParams params)
+{
+  NS_LOG_FUNCTION (this);
+
+  NS_LOG_LOGIC ("oldEnbUeX2apId = " << params.oldEnbUeX2apId);
+  NS_LOG_LOGIC ("newEnbUeX2apId = " << params.newEnbUeX2apId);
+  NS_LOG_LOGIC ("sourceCellId = " << params.sourceCellId);
+  NS_LOG_LOGIC ("targetCellId = " << params.targetCellId);
+
+  NS_ASSERT_MSG (m_x2InterfaceSockets.find (params.sourceCellId) != m_x2InterfaceSockets.end (),
+                 "Socket infos not defined for sourceCellId = " << params.sourceCellId);
+
+  Ptr<Socket> localSocket = m_x2InterfaceSockets [params.sourceCellId]->m_localCtrlPlaneSocket;
+  Ipv4Address remoteIpAddr = m_x2InterfaceSockets [params.sourceCellId]->m_remoteIpAddr;
+
+  NS_LOG_LOGIC ("localSocket = " << localSocket);
+  NS_LOG_LOGIC ("remoteIpAddr = " << remoteIpAddr);
+
+  NS_LOG_INFO ("Send X2 message: HANDOVER REQUEST ACK");
+
+  // Build the X2 message
+  EpcX2HandoverRequestAckHeader x2HoAckHeader;
+  x2HoAckHeader.SetOldEnbUeX2apId (params.oldEnbUeX2apId);
+  x2HoAckHeader.SetNewEnbUeX2apId (params.newEnbUeX2apId);
+  x2HoAckHeader.SetAdmittedBearers (params.admittedBearers);
+  x2HoAckHeader.SetNotAdmittedBearers (params.notAdmittedBearers);
+
+  EpcX2Header x2Header;
+  x2Header.SetMessageType (EpcX2Header::SuccessfulOutcome);
+  x2Header.SetProcedureCode (EpcX2Header::AckReplicateState);
   x2Header.SetLengthOfIes (x2HoAckHeader.GetLengthOfIes ());
   x2Header.SetNumberOfIes (x2HoAckHeader.GetNumberOfIes ());
 

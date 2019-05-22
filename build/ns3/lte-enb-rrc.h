@@ -971,6 +971,11 @@ public:
 
   void SendStateReplicate (uint16_t rnti, uint16_t cellId);
 
+  void SendModHandover (uint16_t rnti);
+
+
+  
+
   /**
    *  \brief This function acts as an interface to trigger Release indication messages towards eNB and EPC
    *  \param imsi the IMSI
@@ -1118,6 +1123,8 @@ private:
    * \param params EpcX2SapUser::HandoverRequestAckParams
    */
   void DoRecvHandoverRequestAck (EpcX2SapUser::HandoverRequestAckParams params);
+
+  void DoRecvAckStateReplication (EpcX2SapUser::HandoverRequestAckParams params);
   /**
    * Receive handover preparation failure function
    *
@@ -1464,6 +1471,7 @@ private:
 
 
   std::map<uint32_t, EpcX2SapUser::HandoverRequestParams> ReplicatedStateMap;
+  std::map<uint32_t, EpcX2SapUser::HandoverRequestAckParams> ReplicatedStateAckMap;
 
   /**
    * The `DefaultTransmissionMode` attribute. The default UEs' transmission

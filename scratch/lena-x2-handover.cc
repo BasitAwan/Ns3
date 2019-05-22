@@ -296,11 +296,13 @@ main (int argc, char *argv[])
 
   // X2-based Handover
 
-  lteHelper->ReplicateState (Seconds (0.100), ueLteDevs.Get (0), enbLteDevs.Get (0), enbLteDevs.Get (1));
-  // lteHelper->HandoverRequest (Seconds (0.100), ueLteDevs.Get (0), enbLteDevs.Get (0), enbLteDevs.Get (1));
+  // lteHelper->ReplicateState (Seconds (0.050), ueLteDevs.Get (0), enbLteDevs.Get (0), enbLteDevs.Get (1));
+  // lteHelper->ModHandover (Seconds (0.200), ueLteDevs.Get (0), enbLteDevs.Get (0), enbLteDevs.Get (1));
+  
+  lteHelper->HandoverRequest (Seconds (0.200), ueLteDevs.Get (0), enbLteDevs.Get (0), enbLteDevs.Get (1));
 
   // Uncomment to enable PCAP tracing
-  //p2ph.EnablePcapAll("lena-x2-handover");
+  p2ph.EnablePcapAll("lena-x2-handover");
 
   lteHelper->EnablePhyTraces ();
   lteHelper->EnableMacTraces ();
